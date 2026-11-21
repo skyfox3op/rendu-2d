@@ -1,0 +1,25 @@
+# --- audio : JAMAIS publie (droits inconnus) ---
+assets/*.wav
+assets/*.mp3
+assets/*.m4a
+*.wav
+*.mp3
+
+# --- les choregraphies : rien par defaut ---
+# le moteur est public, les videos ne le sont pas.
+# pour rendre une video : git add -f videos/<nom>.py  (ce fichier seul, volontairement)
+videos/*
+!videos/.gitkeep
+
+# --- sorties ---
+_segments/
+out/
+qa/
+*.mp4
+*.png
+*.json
+
+# --- python ---
+__pycache__/
+*.pyc
+.venv/

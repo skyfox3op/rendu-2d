@@ -1,0 +1,107 @@
+# Ferme de rendu : 20 machines en parallele, gratuit, rien en local.
+#
+# Ce que fait ce workflow :
+#   - 20 jobs dessinent chacun ~90 frames et encodent leur segment (mp4 MUET) ;
+#   - 1 job recolle les 20 segments sans reencoder et publie un seul mp4 MUET.
+# La musique n'est PAS dans ce depot et n'est jamais envoyee ici : elle est ajoutee
+# en local, en une commande, apres telechargement (voir README).
+name: rendu
+
+on:
+  workflow_dispatch:
+    inputs:
+      video:
+        description: "Fichier de choregraphie (ex. videos/dague.py)"
+        required: true
+        default: videos/dague.py
+      segments:
+        description: "Nombre de segments = nombre de machines (max 20)"
+        required: true
+        default: "20"
+      nom:
+        description: "Nom du mp4 muet produit"
+        required: true
+        default: rendu_muet.mp4
+
+permissions:
+  contents: read
+
+# un seul rendu a la fois : deux lancements ne peuvent pas doubler la facture de minutes
+concurrency:
+  group: rendu
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      indices: ${{ steps.calc.outputs.indices }}
+    steps:
+      - id: calc
+        run: |
+          python3 -c "import json; print('indices=' + json.dumps(list(range(min(20, int('${{ inputs.segments }}'))))))" >> "$GITHUB_OUTPUT"
+
+  segment:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      max-parallel: 20
+      matrix:
+        i: ${{ fromJson(needs.plan.outputs.indices) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: dependances systeme
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libcairo2-dev ffmpeg fonts-inter fonts-dejavu-core
+      - run: pip install -q -r requirements.txt
+      - name: rendre le segment ${{ matrix.i }}
+        run: |
+          python3 outils/rendu_parallele.py "${{ inputs.video }}" /dev/null \
+            --n ${{ inputs.segments }} --segment ${{ matrix.i }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: seg-${{ matrix.i }}
+          path: _segments/*.mp4
+          retention-days: 1
+          if-no-files-found: error
+
+  montage:
+    needs: segment
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: seg-*
+          merge-multiple: true
+          path: segments
+      - name: recoller les segments (sans reencodage, sans audio)
+        run: |
+          python3 - <<'PY'
+          import glob, sys
+          sys.path.insert(0, ".")
+          from outils import segments as S
+          segs = sorted(glob.glob("segments/seg*.mp4"))
+          if not segs:
+              sys.exit("aucun segment recu")
+          print(len(segs), "segments ->", "${{ inputs.nom }}")
+          S.recoller(segs, "${{ inputs.nom }}")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video-muette
+          path: ${{ inputs.nom }}
+          retention-days: 7
