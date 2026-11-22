@@ -12,7 +12,10 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+for _d in (_RACINE, os.path.join(_RACINE, "combat"), os.path.join(_RACINE, "videos")):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 from outils import segments as S  # noqa: E402
 
 _MOD = None
