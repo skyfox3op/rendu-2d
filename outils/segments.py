@@ -17,15 +17,14 @@ import math
 import os
 import subprocess
 
-import numpy as np
 
-
-def graine(seed_video: int, f: int) -> np.random.Generator:
+def graine(seed_video: int, f: int):
     """RNG deterministe par frame. Remplace tout default_rng(seed) global.
 
     Deux appels avec le meme (seed_video, f) donnent la meme sequence, donc un
     segment rendu seul contient exactement les memes particules qu'un rendu complet.
     """
+    import numpy as np                      # importe ici : le montage n'a pas besoin de numpy
     return np.random.default_rng((seed_video * 1_000_003 + f) & 0xFFFFFFFF)
 
 
